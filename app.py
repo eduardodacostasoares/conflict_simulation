@@ -115,6 +115,8 @@ def reset():
     st.session_state.dialogue_added = False
     st.session_state.finished = False
     st.session_state.finish_reason = None
+    st.rerun()
+
 
 def check_end():
     win = SCENARIO["end_conditions"]["win"]
@@ -145,16 +147,6 @@ if "turn" not in st.session_state:
 st.set_page_config(page_title=SCENARIO["title"], layout="centered")
 st.title(SCENARIO["title"])
 st.image("assets/header.png", use_container_width=True)
-
-controls = st.columns([1, 1, 3])
-with controls[0]:
-    st.button("🔄 Restart", on_click=reset)
-
-with controls[1]:
-    if st.button("⏹️ Finish game"):
-        st.session_state.finished = True
-        st.session_state.finish_reason = "Player ended the game early."
-        st.rerun()
 
 # Finished screen
 if st.session_state.finished:
@@ -251,13 +243,15 @@ st.markdown("### Game Controls")
 col1, col2 = st.columns(2)
 
 with col1:
-    st.button("🔄 Restart", on_click=reset)
+    st.button("🔄 Restart", on_click=reset, key="restart_btn_bottom")
 
 with col2:
-    if st.button("⏹️ Finish Game"):
+    if st.button("⏹️ Finish Game", key="finish_btn_bottom"):
         st.session_state.finished = True
         st.session_state.finish_reason = "Player ended the game early."
         st.rerun()
+
+
 
 
 
