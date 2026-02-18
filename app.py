@@ -1,10 +1,16 @@
 from PIL import Image
 import streamlit as st
 
+# -----------------------------
+# Assets (avatars / header)
+# -----------------------------
 ALEX_AVATAR = Image.open("assets/alex.png")
 SAM_AVATAR = Image.open("assets/sam.png")
 MED_AVATAR = Image.open("assets/mediator.png")
 
+# -----------------------------
+# Scenario data
+# -----------------------------
 SCENARIO = {
     "title": "Demo Deadline Conflict",
     "initial_state": {"turn": 0, "tension": 50, "trust_alex": 55, "trust_sam": 55},
@@ -93,11 +99,10 @@ SCENARIO = {
     ],
 }
 
-st.set_page_config(page_title=SCENARIO["title"], layout="centered")
-st.title(SCENARIO["title"])
-st.image("assets/header.png", use_container_width=True)
-
-def clamp(x): 
+# -----------------------------
+# Helpers (define BEFORE usage)
+# -----------------------------
+def clamp(x):
     return max(0, min(100, x))
 
 def reset():
@@ -108,18 +113,67 @@ def reset():
     st.session_state.trust_sam = init["trust_sam"]
     st.session_state.log = []
     st.session_state.dialogue_added = False
+    st.session_state.finished = False
+    st.session_state.finish_reason = None
 
+def check_end():
+    win = SCENARIO["end_conditions"]["win"]
+    lose = SCENARIO["end_conditions"]["lose"]
+    if (
+        st.session_state.tension <= win["tension_max"]
+        and st.session_state.trust_alex >= win["trust_min"]
+        and st.session_state.trust_sam >= win["trust_min"]
+    ):
+        return "win"
+    if (
+        st.session_state.tension >= lose["tension_min"]
+        or st.session_state.trust_alex <= lose["trust_min"]
+        or st.session_state.trust_sam <= lose["trust_min"]
+    ):
+        return "lose"
+    return None
+
+# -----------------------------
+# Init session
+# -----------------------------
 if "turn" not in st.session_state:
     reset()
 
-# Stats
+# -----------------------------
+# UI header + controls
+# -----------------------------
+st.set_page_config(page_title=SCENARIO["title"], layout="centered")
+st.title(SCENARIO["title"])
+st.image("assets/header.png", use_container_width=True)
+
+controls = st.columns([1, 1, 3])
+with controls[0]:
+    st.button("🔄 Restart", on_click=reset)
+
+with controls[1]:
+    if st.button("⏹️ Finish game"):
+        st.session_state.finished = True
+        st.session_state.finish_reason = "Player ended the game early."
+        st.rerun()
+
+# Finished screen
+if st.session_state.finished:
+    st.info(f"Game finished. Reason: {st.session_state.finish_reason}")
+    st.write(
+        f"**Final stats** — Tension: {st.session_state.tension}, "
+        f"Trust(Alex): {st.session_state.trust_alex}, Trust(Sam): {st.session_state.trust_sam}"
+    )
+    st.stop()
+
+# -----------------------------
+# Stats + meters
+# -----------------------------
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Turn", f"{st.session_state.turn+1}/{len(SCENARIO['turns'])}")
 col2.metric("Tension", st.session_state.tension)
 col3.metric("Trust (Alex)", st.session_state.trust_alex)
 col4.metric("Trust (Sam)", st.session_state.trust_sam)
 
-## Stats bar
 st.subheader("Conflict level")
 st.progress(st.session_state.tension / 100)
 
@@ -129,10 +183,19 @@ st.progress(st.session_state.trust_alex / 100)
 st.write("Sam")
 st.progress(st.session_state.trust_sam / 100)
 
-
 st.divider()
 
-# Transcript
+# -----------------------------
+# Current turn: add Alex/Sam once, then render transcript once
+# -----------------------------
+turn_data = SCENARIO["turns"][st.session_state.turn]
+
+if not st.session_state.dialogue_added:
+    st.session_state.log.append(("Alex", turn_data["alex"]))
+    st.session_state.log.append(("Sam", turn_data["sam"]))
+    st.session_state.dialogue_added = True
+
+# Transcript (render ONCE, with avatars)
 for speaker, msg in st.session_state.log:
     if speaker == "Alex":
         with st.chat_message("assistant", avatar=ALEX_AVATAR):
@@ -146,47 +209,17 @@ for speaker, msg in st.session_state.log:
 
 st.divider()
 
-# Current turn
-turn_data = SCENARIO["turns"][st.session_state.turn]
-
-# Add Alex/Sam dialogue to the log only once per turn
-if "dialogue_added" not in st.session_state:
-    st.session_state.dialogue_added = False
-
-if not st.session_state.dialogue_added:
-    st.session_state.log.append(("Alex", turn_data["alex"]))
-    st.session_state.log.append(("Sam", turn_data["sam"]))
-    st.session_state.dialogue_added = True
-
-# Display transcript as chat bubbles
-for speaker, msg in st.session_state.log:
-    if speaker == "Alex":
-        with st.chat_message("assistant"):
-            st.markdown(f"**Alex:** {msg}")
-    elif speaker == "Sam":
-        with st.chat_message("assistant"):
-            st.markdown(f"**Sam:** {msg}")
-    else:
-        with st.chat_message("user"):
-            st.markdown(msg)
-
+# -----------------------------
+# Choices
+# -----------------------------
 st.markdown("### Choose your mediation message:")
 chosen = None
 for i, ch in enumerate(turn_data["choices"]):
     if st.button(f"{ch['id']}) {ch['text']}", key=f"choice_{st.session_state.turn}_{i}"):
         chosen = ch
 
-def check_end():
-    win = SCENARIO["end_conditions"]["win"]
-    lose = SCENARIO["end_conditions"]["lose"]
-    if st.session_state.tension <= win["tension_max"] and st.session_state.trust_alex >= win["trust_min"] and st.session_state.trust_sam >= win["trust_min"]:
-        return "win"
-    if st.session_state.tension >= lose["tension_min"] or st.session_state.trust_alex <= lose["trust_min"] or st.session_state.trust_sam <= lose["trust_min"]:
-        return "lose"
-    return None
-
 if chosen:
-    st.session_state.log.append(("You (Mediator)", chosen["text"]))
+    st.session_state.log.append(("Mediator", chosen["text"]))
 
     delta = SCENARIO["scoring"][chosen["grade"]]
     st.session_state.tension = clamp(st.session_state.tension + delta["tension"])
@@ -201,14 +234,15 @@ if chosen:
         st.error("❌ Conflict escalated. Try different mediation choices.")
         st.stop()
 
+    # Next turn or finish
     if st.session_state.turn < len(SCENARIO["turns"]) - 1:
         st.session_state.turn += 1
         st.session_state.dialogue_added = False
         st.rerun()
-
     else:
-        st.info("Finished! Try again for a better outcome.")
-        st.stop()
+        st.session_state.finished = True
+        st.session_state.finish_reason = "Completed all questions."
+        st.rerun()
 
-st.button("Restart", on_click=reset)
+
 
