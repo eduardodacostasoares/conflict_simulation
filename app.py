@@ -244,5 +244,21 @@ if chosen:
         st.session_state.finish_reason = "Completed all questions."
         st.rerun()
 
+st.divider()
+
+st.markdown("### Game Controls")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.button("🔄 Restart", on_click=reset)
+
+with col2:
+    if st.button("⏹️ Finish Game"):
+        st.session_state.finished = True
+        st.session_state.finish_reason = "Player ended the game early."
+        st.rerun()
+
+
 
 
