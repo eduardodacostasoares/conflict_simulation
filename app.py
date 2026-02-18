@@ -1,4 +1,9 @@
+from PIL import Image
 import streamlit as st
+
+ALEX_AVATAR = Image.open("assets/alex.png")
+SAM_AVATAR = Image.open("assets/sam.png")
+MED_AVATAR = Image.open("assets/mediator.png")
 
 SCENARIO = {
     "title": "Demo Deadline Conflict",
@@ -90,6 +95,7 @@ SCENARIO = {
 
 st.set_page_config(page_title=SCENARIO["title"], layout="centered")
 st.title(SCENARIO["title"])
+st.image("assets/header.png", use_container_width=True)
 
 def clamp(x): 
     return max(0, min(100, x))
@@ -101,6 +107,7 @@ def reset():
     st.session_state.trust_alex = init["trust_alex"]
     st.session_state.trust_sam = init["trust_sam"]
     st.session_state.log = []
+    st.session_state.dialogue_added = False
 
 if "turn" not in st.session_state:
     reset()
@@ -112,18 +119,56 @@ col2.metric("Tension", st.session_state.tension)
 col3.metric("Trust (Alex)", st.session_state.trust_alex)
 col4.metric("Trust (Sam)", st.session_state.trust_sam)
 
+## Stats bar
+st.subheader("Conflict level")
+st.progress(st.session_state.tension / 100)
+
+st.subheader("Trust meters")
+st.write("Alex")
+st.progress(st.session_state.trust_alex / 100)
+st.write("Sam")
+st.progress(st.session_state.trust_sam / 100)
+
+
 st.divider()
 
 # Transcript
 for speaker, msg in st.session_state.log:
-    st.markdown(f"**{speaker}:** {msg}")
+    if speaker == "Alex":
+        with st.chat_message("assistant", avatar=ALEX_AVATAR):
+            st.markdown(msg)
+    elif speaker == "Sam":
+        with st.chat_message("assistant", avatar=SAM_AVATAR):
+            st.markdown(msg)
+    else:
+        with st.chat_message("user", avatar=MED_AVATAR):
+            st.markdown(msg)
 
 st.divider()
 
 # Current turn
 turn_data = SCENARIO["turns"][st.session_state.turn]
-st.markdown(f"**Alex:** {turn_data['alex']}")
-st.markdown(f"**Sam:** {turn_data['sam']}")
+
+# Add Alex/Sam dialogue to the log only once per turn
+if "dialogue_added" not in st.session_state:
+    st.session_state.dialogue_added = False
+
+if not st.session_state.dialogue_added:
+    st.session_state.log.append(("Alex", turn_data["alex"]))
+    st.session_state.log.append(("Sam", turn_data["sam"]))
+    st.session_state.dialogue_added = True
+
+# Display transcript as chat bubbles
+for speaker, msg in st.session_state.log:
+    if speaker == "Alex":
+        with st.chat_message("assistant"):
+            st.markdown(f"**Alex:** {msg}")
+    elif speaker == "Sam":
+        with st.chat_message("assistant"):
+            st.markdown(f"**Sam:** {msg}")
+    else:
+        with st.chat_message("user"):
+            st.markdown(msg)
 
 st.markdown("### Choose your mediation message:")
 chosen = None
@@ -158,9 +203,12 @@ if chosen:
 
     if st.session_state.turn < len(SCENARIO["turns"]) - 1:
         st.session_state.turn += 1
+        st.session_state.dialogue_added = False
         st.rerun()
+
     else:
         st.info("Finished! Try again for a better outcome.")
         st.stop()
 
 st.button("Restart", on_click=reset)
+
