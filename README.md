@@ -5,7 +5,7 @@
 <h1 align="center">Conflict Simulation</h1>
 
 <p align="center">
-  An interactive game where <strong>you are the mediator</strong> in a workplace conflict.
+  An interactive game where <strong>YOU are the mediator</strong> in a workplace conflict.
 </p>
 
 <p align="center">
